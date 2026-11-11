@@ -48,7 +48,7 @@ jobs:
           supabase db push $TARGET --password "$SUPABASE_DB_PASSWORD" --yes
 
       - name: Déployer les fonctions
-        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF" --use-api
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
       - name: Activer les connexions anonymes (appairage par QR code)
         run: |
