@@ -39,10 +39,13 @@ jobs:
           version: latest
 
       - name: Lier le projet
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Appliquer les migrations SQL
-        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+        run: |
+          # Les versions récentes du CLI demandent --remote, les anciennes --linked
+          if supabase db push --help | grep -q -- "--remote"; then TARGET=--remote; else TARGET=--linked; fi
+          supabase db push $TARGET --password "$SUPABASE_DB_PASSWORD" --yes
 
       - name: Déployer les fonctions
         run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF" --use-api
