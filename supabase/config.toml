@@ -1,0 +1,16 @@
+# Configuration Supabase CLI (utilisée par le déploiement GitHub Actions).
+# Ces fonctions sont appelées par OwnTracks, le Raccourci SOS ou la base
+# elle-même : elles gèrent leur propre authentification.
+project_id = "localiser"
+
+[functions.owntracks]
+verify_jwt = false
+
+[functions.sos]
+verify_jwt = false
+
+[functions.notify]
+verify_jwt = false
+
+[functions.push-key]
+verify_jwt = false

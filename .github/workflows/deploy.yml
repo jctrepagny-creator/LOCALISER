@@ -1,0 +1,90 @@
+name: Déployer Localiser
+
+# Déploie la base de données et les fonctions sur Supabase, puis publie
+# l'app des parents sur GitHub Pages. Se lance à chaque push sur main,
+# ou à la main depuis l'onglet Actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: aafgbtaudauxhayqpovc
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+jobs:
+  serveur:
+    name: Supabase (base + fonctions)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier les secrets
+        run: |
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || { echo "::error::Secret SUPABASE_ACCESS_TOKEN manquant (voir docs/INSTALLATION.md)"; exit 1; }
+          [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::Secret SUPABASE_DB_PASSWORD manquant (voir docs/INSTALLATION.md)"; exit 1; }
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Lier le projet
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Appliquer les migrations SQL
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Déployer les fonctions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF" --use-api
+
+      - name: Activer les connexions anonymes (appairage par QR code)
+        run: |
+          curl -fsS -X PATCH "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"external_anonymous_users_enabled": true}' > /dev/null
+
+  app:
+    name: App des parents (GitHub Pages)
+    needs: serveur
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Générer config.js avec la clé publique du projet
+        run: |
+          KEYS=$(curl -fsS "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/api-keys" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")
+          KEY=$(echo "$KEYS" | jq -r '[.[] | select(.name == "anon")][0].api_key // empty')
+          if [ -z "$KEY" ] || [ "$KEY" = "null" ]; then
+            KEY=$(echo "$KEYS" | jq -r '[.[] | select(.type == "publishable")][0].api_key // empty')
+          fi
+          [ -n "$KEY" ] || { echo "::error::Clé publique Supabase introuvable"; exit 1; }
+          cat > web/config.js <<JS
+          window.LOCALISER_CONFIG = {
+            supabaseUrl: "https://${SUPABASE_PROJECT_REF}.supabase.co",
+            supabaseKey: "${KEY}",
+          };
+          JS
+          # nouvelle version du cache hors ligne à chaque déploiement
+          sed -i "s/localiser-v1/localiser-${GITHUB_SHA::8}/" web/sw.js
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
