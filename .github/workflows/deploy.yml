@@ -5,7 +5,7 @@ name: Déployer Localiser
 # ou à la main depuis l'onglet Actions.
 on:
   push:
-    branches: [main]
+    branches: [main, ccr-9db69a67-9c5ca7]
   workflow_dispatch:
 
 permissions:
