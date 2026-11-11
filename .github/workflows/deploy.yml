@@ -68,9 +68,10 @@ jobs:
         run: |
           KEYS=$(curl -fsS "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/api-keys" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")
-          KEY=$(echo "$KEYS" | jq -r '[.[] | select(.name == "anon")][0].api_key // empty')
+          # clé « publishable » (sb_publishable_…) en priorité, sinon l'ancienne clé « anon »
+          KEY=$(echo "$KEYS" | jq -r '[.[] | select(.type == "publishable")][0].api_key // empty')
           if [ -z "$KEY" ] || [ "$KEY" = "null" ]; then
-            KEY=$(echo "$KEYS" | jq -r '[.[] | select(.type == "publishable")][0].api_key // empty')
+            KEY=$(echo "$KEYS" | jq -r '[.[] | select(.name == "anon")][0].api_key // empty')
           fi
           [ -n "$KEY" ] || { echo "::error::Clé publique Supabase introuvable"; exit 1; }
           cat > web/config.js <<JS
