@@ -227,3 +227,23 @@ do $$ begin
   raise exception 'ÉCHEC : état enfant lisible avec une fausse clé';
 exception when sqlstate '28000' then null; end $$;
 reset role;
+
+-- ===== Notification de test : seulement pour la personne qui la demande =====
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+insert into public.push_subscriptions (endpoint, user_id, family_id, p256dh, auth)
+select 'https://push.example/maman', auth.uid(), family_id, 'k', 'a' from public.members where user_id = auth.uid();
+reset role;
+insert into public.push_subscriptions (endpoint, user_id, family_id, p256dh, auth)
+select 'https://push.example/mamie', '33333333-3333-3333-3333-333333333333', family_id, 'k', 'a' from public.members where user_id = '33333333-3333-3333-3333-333333333333';
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select (public.test_notification((select family_id from public.members where user_id = auth.uid())))->>'subscriptions' as nsubs \gset
+reset role;
+select pg_temp.assert(:'nsubs' = '1', 'un abonnement pour la personne');
+select set_config('my.ev', (select id::text from public.events where type = 'test'), false),
+       set_config('my.sec', (select value from private.settings where key = 'internal_secret'), false);
+set role service_role;
+select pg_temp.assert(jsonb_array_length((public.svc_notify_payload(current_setting('my.ev')::bigint,
+  current_setting('my.sec')))->'subscriptions') = 1, 'test envoyé seulement à la personne');
+reset role;

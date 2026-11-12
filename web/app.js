@@ -352,7 +352,7 @@ async function enterApp() {
   S.children = new Map(kids.data.map((c) => [c.id, c]));
   S.members = mem.data;
   S.zones = zones.data;
-  S.events = events.data;
+  S.events = events.data.filter((e) => e.type !== "test");
 
   $("#family-name").textContent = S.family.name;
   $("#topbar").hidden = false;
@@ -545,10 +545,12 @@ function subscribeRealtime() {
       if (!S.fitted && p.new?.lat != null) fitAll();
     })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "events", filter: `family_id=eq.${fid}` }, (p) => {
-      S.events.unshift(p.new);
+      const ev = p.new;
+      // Notification de test : uniquement pour la personne qui l'a demandée
+      if (ev.type === "test") return;
+      S.events.unshift(ev);
       S.events = S.events.slice(0, 100);
       renderAlertsBadge();
-      const ev = p.new;
       toast(ev.title, { sos: ev.type === "sos", onclick: () => showEventOnMap(ev) });
       if (ev.type === "sos" && navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
     })
@@ -573,7 +575,7 @@ async function resync() {
     S.sb.from("events").select("*").eq("family_id", fid).order("created_at", { ascending: false }).limit(50),
   ]);
   if (!kids.error) { S.children = new Map(kids.data.map((c) => [c.id, c])); renderChildren(); }
-  if (!events.error) { S.events = events.data; renderAlertsBadge(); }
+  if (!events.error) { S.events = events.data.filter((e) => e.type !== "test"); renderAlertsBadge(); }
 }
 
 // ----- « je regarde » : demande le mode direct aux téléphones -----
@@ -777,6 +779,16 @@ async function enablePush() {
   if (error) throw error;
 }
 
+// Réenregistre l'abonnement de cet appareil (au cas où le serveur l'aurait
+// perdu), puis demande au serveur une notification réservée à cette personne.
+async function sendTestNotification() {
+  await enablePush();
+  const { data, error } = await S.sb.rpc("test_notification", { p_family_id: S.family.id });
+  if (error) throw error;
+  if (!data.server_ready) throw new Error("Le serveur de notifications n'est pas encore prêt : réessayez dans une minute.");
+  if (!data.subscriptions) throw new Error("Cet appareil n'est pas enregistré pour les alertes.");
+}
+
 async function disablePush() {
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
@@ -813,7 +825,13 @@ function notificationsCard() {
     };
     card.replaceChildren(h("p", {}, texts[st]));
     if (st === "off") card.append(btn("Activer les alertes", enablePush));
-    if (st === "on") card.append(btn("Désactiver sur cet appareil", disablePush, "btn ghost block"));
+    if (st === "on") {
+      card.append(
+        btn("Envoyer une notification de test", sendTestNotification),
+        h("p", { class: "muted small" }, "Elle doit arriver en quelques secondes, avec sonnerie, même si vous quittez l'app."),
+        btn("Désactiver sur cet appareil", disablePush, "btn ghost block"),
+      );
+    }
   })();
   return card;
 }
