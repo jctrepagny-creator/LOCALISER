@@ -4,7 +4,8 @@
 const CFG = window.LOCALISER_CONFIG || {};
 const APP_URL = location.origin + location.pathname;
 const FUNCTIONS_URL = (CFG.supabaseUrl || "") + "/functions/v1";
-const OWNTRACKS_APPSTORE = "https://apps.apple.com/app/owntracks/id692424691";
+const APP_BASE = APP_URL.replace(/[^/]*$/, "");
+const APPLE_FIND_URL = "https://www.icloud.com/find";
 const COLORS = ["#2563eb", "#e11d48", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#4b5563"];
 const WATCH_EVERY_MS = 15000;
 const LIVE_MAX_AGE_S = 30;
@@ -96,13 +97,6 @@ function qrImg(text) {
   return h("div", { class: "qr" }, h("img", { src: qr.createDataURL(6, 4), alt: "QR code" }));
 }
 
-function b64utf8(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bin = "";
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin);
-}
-
 function urlB64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -181,8 +175,9 @@ $("#page-back").addEventListener("click", closePage);
 async function start() {
   const hash = new URLSearchParams(location.hash.slice(1));
 
+  // Anciens liens SOS (#sos=…) : redirection vers la nouvelle page
   if (hash.get("sos")) {
-    renderSosSetup(hash.get("sos"));
+    location.replace(`${APP_BASE}sos.html?k=${encodeURIComponent(hash.get("sos"))}`);
     return;
   }
 
@@ -436,6 +431,9 @@ function renderChildren() {
       ),
       h("span", { class: "batt" + (c.batt != null && c.batt < 15 ? " low" : "") }, battText(c)),
       h("div", { class: "child-actions" },
+        st.key === "off" || st.key === "never"
+          ? h("a", { class: "icon-btn small", href: APPLE_FIND_URL, target: "_blank", rel: "noopener", title: "Voir sur Localiser d'Apple", "aria-label": "Voir " + c.name + " sur Localiser d'Apple" }, "🍏")
+          : null,
         h("button", { class: "icon-btn small", "aria-label": "Historique de " + c.name, onclick: () => openHistory(c.id) }, "🕘"),
       ),
     ));
@@ -491,7 +489,8 @@ function markerIcon(c) {
 }
 
 function popupHtml(c) {
-  return `<strong>${esc(c.name)}</strong><br>${esc(ago(c.last_fix_at))}${c.acc ? ` · ±${c.acc} m` : ""}<br>${esc(battText(c))}`;
+  return `<strong>${esc(c.name)}</strong><br>${esc(ago(c.last_fix_at))}${c.acc ? ` · ±${c.acc} m` : ""}<br>${esc(battText(c))}` +
+    `<br><a href="${APPLE_FIND_URL}" target="_blank" rel="noopener">🍏 Position via Localiser d'Apple</a>`;
 }
 
 function updateMarker(c) {
@@ -1005,6 +1004,9 @@ function openChild(id) {
         "Dans les deux cas, dès qu'un parent ouvre la carte, l'iPhone passe en direct (une position toutes les 5 s) à son envoi suivant."),
       err,
       h("button", { class: "btn block", type: "submit" }, "Enregistrer")),
+      h("h2", {}, "Si OwnTracks ne répond plus"),
+      h("p", { class: "muted small" }, "Localiser d'Apple montre l'iPhone même si OwnTracks est fermé (connexion avec l'identifiant Apple de " + c.name + ")."),
+      h("a", { class: "btn ghost block", href: APPLE_FIND_URL, target: "_blank", rel: "noopener", style: { display: "block", textAlign: "center", textDecoration: "none" } }, "🍏 Ouvrir Localiser d'Apple"),
       h("h2", {}, "iPhone de " + c.name),
       h("p", { class: "muted small" }, "Pour installer ou réinstaller OwnTracks et le bouton SOS. Un nouveau QR code désactive l'ancienne configuration."),
       h("button", {
@@ -1034,61 +1036,25 @@ function openChild(id) {
   });
 }
 
-function ownTracksConfig(childName, creds) {
-  return {
-    _type: "configuration",
-    mode: 3,
-    url: FUNCTIONS_URL + "/owntracks",
-    auth: true,
-    username: creds.username,
-    password: creds.password,
-    deviceId: "iphone",
-    tid: initials(childName),
-    monitoring: 1,
-    cmd: true,
-    remoteConfiguration: true,
-    allowRemoteLocation: true,
-    extendedData: true,
-    downgrade: 15,
-    locked: true,
-    maxHistory: 0,
-    // Zone invisible qui suit l'enfant : quand il en sort, iOS relance
-    // OwnTracks en arrière-plan, même si l'app a été fermée par balayage.
-    waypoints: [{ _type: "waypoint", desc: "+follow", lat: 0, lon: 0, rad: 50, tst: 1000000000 }],
-  };
-}
-
 function openChildSetup(childName, creds) {
-  const cfg = ownTracksConfig(childName, creds);
-  const otUrl = "owntracks:///config?inline=" + encodeURIComponent(b64utf8(JSON.stringify(cfg)));
-  const sosUrl = `${APP_URL}#sos=${encodeURIComponent(creds.username + ":" + creds.password)}`;
+  const key = creds.username + ":" + creds.password;
+  const setupUrl = `${APP_BASE}enfant.html?k=${encodeURIComponent(key)}`;
   openPage("iPhone de " + childName, (b) => b.append(
-    h("p", { class: "card small" }, "⚠️ Gardez cette page ouverte pendant l'installation : ces QR codes ne seront plus affichés ensuite (vous pourrez en générer de nouveaux)."),
-    h("h2", {}, "1. Installer OwnTracks"),
-    h("p", {}, "Sur l'iPhone de ", h("strong", {}, childName), ", installez l'app gratuite ", h("a", { href: OWNTRACKS_APPSTORE, target: "_blank", rel: "noopener" }, "OwnTracks"), " depuis l'App Store, puis ouvrez-la une première fois."),
-    h("h2", {}, "2. Scanner la configuration"),
-    h("p", {}, "Avec l'", h("strong", {}, "appareil photo"), " de l'iPhone, scannez ce QR code puis touchez « Ouvrir dans OwnTracks » et acceptez la configuration :"),
-    qrImg(otUrl),
-    h("h2", {}, "3. Autorisations sur l'iPhone"),
-    h("ol", { class: "steps" },
-      h("li", {}, "Localisation : ", h("strong", {}, "« Toujours »"), " et ", h("strong", {}, "« Position exacte »"), " activée (Réglages → OwnTracks → Position)."),
-      h("li", {}, "Réglages → Général → ", h("strong", {}, "Actualisation en arrière-plan"), " : activée pour OwnTracks."),
-      h("li", {}, "Expliquez à ", childName, " de ne pas fermer OwnTracks en le balayant vers le haut (sinon le suivi s'arrête jusqu'à la réouverture : vous recevrez alors une alerte « plus de nouvelles »)."),
-      h("li", {}, "Dans OwnTracks, touchez la flèche ↑ pour envoyer une première position : ", childName, " doit apparaître sur votre carte."),
-    ),
-    h("h2", {}, "4. Bouton SOS (widget)"),
-    h("p", {}, "Toujours avec l'appareil photo de l'iPhone de ", childName, ", scannez ce second QR code : une page explique comment créer le bouton SOS en 2 minutes."),
-    qrImg(sosUrl),
+    h("p", {}, "Sur l'iPhone de ", h("strong", {}, childName), ", ouvrez l'", h("strong", {}, "appareil photo"),
+      " et scannez ce QR code. Une page s'ouvre avec toutes les étapes, dans l'ordre, et une coche verte ✅ quand ça marche."),
+    qrImg(setupUrl),
+    navigator.share
+      ? h("button", { class: "btn ghost block", onclick: () => navigator.share({ title: "Installation Localiser", url: setupUrl }).catch(() => {}) }, "Ou envoyer le lien à l'iPhone (SMS…)")
+      : "",
+    h("p", { class: "card small" }, "Ce QR code ne sera plus affiché après « Terminé ». Gardez cette page ouverte jusqu'à la coche verte (vous pourrez sinon en générer un nouveau)."),
     h("details", { class: "card small" },
-      h("summary", {}, "Configuration manuelle (si le QR code ne fonctionne pas)"),
+      h("summary", {}, "Configuration manuelle d'OwnTracks (si besoin)"),
       h("p", {}, "Dans OwnTracks → ⓘ → Réglages : Mode ", h("strong", {}, "HTTP"), ", puis :"),
-      h("p", {}, "URL : ", h("span", { class: "kv" }, cfg.url)),
+      h("p", {}, "URL : ", h("span", { class: "kv" }, FUNCTIONS_URL + "/owntracks")),
       h("p", {}, "Authentification : activée"),
       h("p", {}, "Identifiant : ", h("span", { class: "kv" }, creds.username)),
       h("p", {}, "Mot de passe : ", h("span", { class: "kv" }, creds.password)),
-      h("p", {}, "Device ID : iphone · Tracker ID : ", cfg.tid),
-      h("p", {}, "Commandes à distance (cmd) et configuration à distance : activées."),
-      h("p", {}, "Si l'iPhone affiche « URI or file configuration not allowed » : Réglages iOS → OwnTracks → autoriser la configuration par URL, puis rescanner."),
+      h("p", {}, "Device ID : iphone · Tracker ID : ", initials(childName)),
     ),
     h("button", { class: "btn block", onclick: () => { closeAllPages(); } }, "Terminé"),
   ));
@@ -1146,48 +1112,6 @@ $("#zone-save").addEventListener("click", async () => {
   startZonePlacement.cleanup?.();
   toast(`Zone « ${name} » créée. Elle sera envoyée aux iPhone à leur prochain envoi.`);
 });
-
-// ---------------------------------------------------------------------------
-// Page d'aide « bouton SOS » (ouverte sur l'iPhone de l'enfant)
-// ---------------------------------------------------------------------------
-function renderSosSetup(key) {
-  const sosUrl = `${FUNCTIONS_URL}/sos?k=${encodeURIComponent(key)}`;
-  const copyBtn = h("button", {
-    class: "btn block",
-    onclick: async () => {
-      try {
-        await navigator.clipboard.writeText(sosUrl);
-        copyBtn.textContent = "Adresse copiée ✅";
-      } catch {
-        prompt("Copiez cette adresse :", sosUrl);
-      }
-    },
-  }, "Copier l'adresse SOS");
-  openPage("Bouton SOS", (b) => b.append(
-    h("p", {}, "Ce bouton envoie une alerte immédiate avec ta position à tes parents."),
-    h("h2", {}, "1. Copier l'adresse"),
-    copyBtn,
-    h("h2", {}, "2. Créer le Raccourci"),
-    h("ol", { class: "steps" },
-      h("li", {}, "Ouvre l'app ", h("strong", {}, "Raccourcis"), " (déjà installée sur l'iPhone) et touche ", h("strong", {}, "＋"), "."),
-      h("li", {}, "Renomme le raccourci ", h("strong", {}, "« SOS »"), " (touche le nom en haut). Tu peux choisir une icône rouge."),
-      h("li", {}, "Ajoute l'action ", h("strong", {}, "« Obtenir la position actuelle »"), "."),
-      h("li", {}, "Ajoute l'action ", h("strong", {}, "« Obtenir le contenu de l'URL »"), " et colle l'adresse copiée à la place de « URL »."),
-      h("li", {}, "Touche la flèche ", h("strong", {}, "›"), " de cette action : Méthode ", h("strong", {}, "POST"), ", Corps de la requête ", h("strong", {}, "JSON"), "."),
-      h("li", {}, "Ajoute un champ ", h("strong", {}, "Texte"), " nommé ", h("strong", {}, "lat"), " : comme valeur, choisis la variable « Position actuelle » puis touche-la et choisis ", h("strong", {}, "Latitude"), "."),
-      h("li", {}, "Ajoute un champ ", h("strong", {}, "Texte"), " nommé ", h("strong", {}, "lon"), " : variable « Position actuelle » → ", h("strong", {}, "Longitude"), "."),
-      h("li", {}, "Ajoute l'action ", h("strong", {}, "« Afficher la notification »"), " avec « Contenu de l'URL » (pour voir que l'alerte est partie)."),
-      h("li", {}, "Touche « OK ». La première fois, l'iPhone demande d'autoriser la position et la connexion : accepte toujours."),
-    ),
-    h("h2", {}, "3. Mettre le bouton sur l'écran d'accueil"),
-    h("ol", { class: "steps" },
-      h("li", {}, "Appuie longtemps sur un espace vide de l'écran d'accueil, puis ", h("strong", {}, "Modifier → Ajouter un widget"), "."),
-      h("li", {}, "Choisis ", h("strong", {}, "Raccourcis"), ", le petit widget, puis sélectionne le raccourci ", h("strong", {}, "SOS"), "."),
-    ),
-    h("h2", {}, "4. Tester"),
-    h("p", { class: "muted small" }, "Préviens tes parents avant : un test envoie une vraie alerte SOS."),
-  ), { root: true });
-}
 
 // ---------------------------------------------------------------------------
 // Un lien #sos=… ou #invite=… ouvert alors que l'app est déjà affichée

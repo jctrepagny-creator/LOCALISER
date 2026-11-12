@@ -218,3 +218,12 @@ set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 delete from public.members where user_id = '11111111-1111-1111-1111-111111111111';
 reset role;
 select pg_temp.assert((select count(*) from public.push_subscriptions) = 0, 'abonnements push supprimés avec le membre');
+
+-- ===== État de l'enfant pour la page d'installation =====
+set role service_role;
+select pg_temp.assert((public.svc_child_status(current_setting('my.u') || ':' || current_setting('my.np')))->>'name' = 'Léa', 'état enfant lisible avec la bonne clé');
+do $$ begin
+  perform public.svc_child_status(current_setting('my.u') || ':faux');
+  raise exception 'ÉCHEC : état enfant lisible avec une fausse clé';
+exception when sqlstate '28000' then null; end $$;
+reset role;

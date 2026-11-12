@@ -58,21 +58,20 @@ Le déploiement fait tout seul les opérations suivantes :
 
 Un **proche** voit la carte et reçoit les alertes, mais ne peut pas modifier la famille. Chaque code est valable 24 h et ne sert qu'une fois.
 
-## Étape 5 — L'iPhone de chaque enfant
+## Étape 5 — L'iPhone de chaque enfant (un seul QR code)
 
-Sur le téléphone d'un parent : **☰ → Ajouter un enfant**. Saisissez le prénom et choisissez une couleur. La page de configuration s'affiche alors. **Gardez-la ouverte** et suivez-la avec l'iPhone de l'enfant en main :
+Sur le téléphone d'un parent : **☰ → Ajouter un enfant** (prénom + couleur). Un **QR code** s'affiche.
 
-1. Installez **OwnTracks** depuis l'App Store et ouvrez-le une fois.
-2. Scannez le **premier QR code** avec l'appareil photo de l'iPhone, touchez « Ouvrir dans OwnTracks » et acceptez.
-   - Si l'iPhone affiche « URI or file configuration not allowed », allez dans Réglages iOS → OwnTracks, autorisez la configuration par URL, puis rescannez.
-3. Réglez les autorisations :
-   - **Position : « Toujours »**, avec **Position exacte** activée ;
-   - Réglages → Général → **Actualisation en arrière-plan** activée pour OwnTracks ;
-   - **Ne pas fermer OwnTracks** en le balayant vers le haut dans le sélecteur d'apps.
-4. Dans OwnTracks, touchez la flèche ↑ : l'enfant doit apparaître sur votre carte.
-5. Scannez le **second QR code** (bouton SOS) et suivez la page qui s'ouvre pour créer le Raccourci et son widget. Faites un essai en prévenant tout le monde.
+Sur l'iPhone de l'enfant, ouvrez l'**appareil photo** et scannez-le. Une page s'ouvre dans Safari avec toutes les étapes, dans l'ordre, chacune avec un gros bouton :
 
-Si le QR code ne fonctionne pas, la page de configuration contient aussi les réglages à saisir à la main.
+1. **Installer OwnTracks** (App Store, gratuit).
+2. **Configurer OwnTracks** : un seul bouton, puis « Ouvrir » et accepter.
+3. **Autoriser la position** : Réglages → OwnTracks → Position **« Toujours »** + Position exacte.
+4. **Vérifier** : la page affiche ✅ dès que la position arrive chez les parents.
+5. **Bouton SOS** : sur la page rouge, Partager ⬆︎ → « Sur l'écran d'accueil ». Une icône **SOS** apparaît ; un appui sur le gros bouton prévient les parents avec la position. Pas besoin de l'app Raccourcis.
+6. **Localiser d'Apple** (filet de sécurité) : Réglages → nom en haut → Localiser → activer « Localiser mon iPhone », « Réseau Localiser » et « Envoyer la dernière position ».
+
+Si OwnTracks est fermé (balayé vers le haut), iOS le relance tout seul dès que l'enfant se déplace (zone invisible « +follow » envoyée automatiquement). S'il ne bouge pas, sa dernière position reste juste, et **Localiser d'Apple** reste disponible : dans l'app Localiser, bouton **🍏** (ou ☰ → Gérer → « Ouvrir Localiser d'Apple »), qui ouvre **icloud.com/find** ; connectez-vous avec l'identifiant Apple de l'enfant.
 
 ## Étape 6 — Les zones
 

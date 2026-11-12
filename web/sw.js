@@ -3,7 +3,7 @@ const CACHE = "localiser-v1";
 const SHELL = [
   "./", "index.html", "style.css", "app.js", "config.js", "manifest.webmanifest",
   "vendor/supabase.js", "vendor/qrcode.js", "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css",
-  "icons/icon-192.png", "icons/badge-96.png",
+  "icons/icon-192.png", "icons/badge-96.png", "enfant.html", "enfant.js", "enfant.css", "sos.html", "icons/sos-180.png",
 ];
 
 self.addEventListener("install", (e) => {
