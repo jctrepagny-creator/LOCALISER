@@ -70,6 +70,7 @@ select public.svc_ingest_owntracks(:'cuser', :'cpass',
                      'tst', extract(epoch from now())::bigint, 'm', 1)) as resp \gset
 \echo Réponse 1 : :resp
 select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*] ? (@.action == "setWaypoints")'), 'zones envoyées au téléphone');
+select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*].waypoints.waypoints[*] ? (@.desc == "+follow" && @.rad == 50)'), 'zone +follow envoyée');
 select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*] ? (@.action == "setConfiguration" && @.configuration.monitoring == 1)'), 'profil éco envoyé');
 
 -- Deuxième envoi : plus rien à synchroniser

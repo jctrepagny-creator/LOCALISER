@@ -1052,6 +1052,9 @@ function ownTracksConfig(childName, creds) {
     downgrade: 15,
     locked: true,
     maxHistory: 0,
+    // Zone invisible qui suit l'enfant : quand il en sort, iOS relance
+    // OwnTracks en arrière-plan, même si l'app a été fermée par balayage.
+    waypoints: [{ _type: "waypoint", desc: "+follow", lat: 0, lon: 0, rad: 50, tst: 1000000000 }],
   };
 }
 
