@@ -24,7 +24,7 @@ jobs:
               -d "$(jq -n --arg q "$1" '{query: $q}')" | jq .
           }
           echo "=== Enfants ==="
-          q "select left(id::text, 8) as enfant, idle_mode, profile, profile_sent_at, last_seen_at, last_fix_at, batt, batt_status, zones_synced_version, now() as maintenant from public.children order by created_at"
+          q "select left(id::text, 8) as enfant, idle_mode, profile, auth_error_at, profile_sent_at, last_seen_at, last_fix_at, batt, batt_status, zones_synced_version, now() as maintenant from public.children order by created_at"
           echo "=== Positions reçues par heure (24 h) ==="
           q "select left(child_id::text, 8) as enfant, date_trunc('hour', received_at) as heure, count(*) as nb, string_agg(distinct coalesce(trigger, '-'), ',') as declencheurs from public.locations where received_at > now() - interval '24 hours' group by 1, 2 order by 2, 1"
           echo "=== Derniers événements ==="
