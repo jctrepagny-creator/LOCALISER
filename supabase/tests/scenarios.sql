@@ -71,7 +71,7 @@ select public.svc_ingest_owntracks(:'cuser', :'cpass',
 \echo Réponse 1 : :resp
 select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*] ? (@.action == "setWaypoints")'), 'zones envoyées au téléphone');
 select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*].waypoints.waypoints[*] ? (@.desc == "+follow" && @.rad == 50)'), 'zone +follow envoyée');
-select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*] ? (@.action == "setConfiguration" && @.configuration.monitoring == 1)'), 'profil éco envoyé');
+select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*] ? (@.action == "setConfiguration" && @.configuration.adapt == 5)'), 'profil éco envoyé');
 
 -- Deuxième envoi : plus rien à synchroniser
 select public.svc_ingest_owntracks(:'cuser', :'cpass',
@@ -141,7 +141,7 @@ set role service_role;
 select public.svc_ingest_owntracks(:'cuser', :'cpass',
   jsonb_build_object('_type','location','lat',48.8566,'lon',2.3522,'acc',10,'batt',79,
                      'tst', extract(epoch from now())::bigint, 'm', 2)) as resp \gset
-select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*] ? (@.configuration.monitoring == 1)'), 'retour en éco');
+select pg_temp.assert(jsonb_path_exists(:'resp'::jsonb, '$[*] ? (@.configuration.adapt == 5)'), 'retour en éco');
 reset role;
 
 -- ===== Batterie faible : une seule alerte =====
@@ -247,3 +247,7 @@ set role service_role;
 select pg_temp.assert(jsonb_array_length((public.svc_notify_payload(current_setting('my.ev')::bigint,
   current_setting('my.sec')))->'subscriptions') = 1, 'test envoyé seulement à la personne');
 reset role;
+
+-- ===== Mode intelligent : profil par défaut avec « adapt » =====
+select pg_temp.assert((private.profile_config('eco'))->>'adapt' = '5', 'mode intelligent : adapt 5 min');
+select pg_temp.assert(private.profile_monitoring('eco') is null, 'mode intelligent : pas de correction du champ m');

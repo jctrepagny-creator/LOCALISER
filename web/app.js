@@ -394,7 +394,11 @@ function childState(c) {
   if (!c.last_seen_at) return { key: "never", label: "Jamais connecté", cls: "off" };
   if (c.profile === "direct" && age <= LIVE_MAX_AGE_S) return { key: "live", label: "EN DIRECT", cls: "live" };
   if (seen > silentLimit) return { key: "off", label: "Sans nouvelles", cls: "off" };
-  if (c.profile !== "direct") return { key: "wait", label: "Passage en direct…", cls: "wait" };
+  // Téléphone actif il y a peu : il recevra l'ordre de passer en direct au prochain envoi
+  if (c.profile !== "direct" && seen <= 3 * 60) return { key: "wait", label: "Passage en direct…", cls: "wait" };
+  // Pas d'envoi récent : l'enfant ne bouge pas (l'iPhone n'envoie rien à l'arrêt),
+  // ou le téléphone est éteint / hors réseau.
+  if (age > 3 * 60) return { key: "sleep", label: "💤 Immobile", cls: "" };
   return { key: "idle", label: "", cls: "" };
 }
 
@@ -414,6 +418,7 @@ function metaText(c) {
   if (c.acc) parts.push(`±${c.acc} m`);
   if (c.vel && c.vel > 2) parts.push(`${c.vel} km/h`);
   if (st.key === "wait") parts.push("bascule au prochain envoi du téléphone");
+  if (st.key === "sleep") parts.push("reprend dès qu'il bouge");
   return parts.join(" · ");
 }
 
@@ -431,7 +436,7 @@ function renderChildren() {
       ),
       h("span", { class: "batt" + (c.batt != null && c.batt < 15 ? " low" : "") }, battText(c)),
       h("div", { class: "child-actions" },
-        st.key === "off" || st.key === "never"
+        st.key === "off" || st.key === "never" || st.key === "sleep"
           ? h("a", { class: "icon-btn small", href: APPLE_FIND_URL, target: "_blank", rel: "noopener", title: "Voir sur Localiser d'Apple", "aria-label": "Voir " + c.name + " sur Localiser d'Apple" }, "🍏")
           : null,
         h("button", { class: "icon-btn small", "aria-label": "Historique de " + c.name, onclick: () => openHistory(c.id) }, "🕘"),
@@ -999,7 +1004,7 @@ function openChild(id) {
     const name = h("input", { maxlength: 40, value: c.name, required: true });
     const color = colorPicker(c.color);
     const mode = h("select", {},
-      h("option", { value: "eco", selected: c.idle_mode === "eco" }, "Économie (recommandé)"),
+      h("option", { value: "eco", selected: c.idle_mode === "eco" }, "Intelligent (recommandé)"),
       h("option", { value: "reactif", selected: c.idle_mode === "reactif" }, "Réactif"),
     );
     const err = h("p", { class: "danger-text small" });
@@ -1017,9 +1022,9 @@ function openChild(id) {
       h("div", { class: "field" }, "Couleur", color.el),
       h("label", { class: "field" }, "Quand personne ne regarde la carte", mode),
       h("p", { class: "muted small" },
-        "Économie : l'iPhone n'envoie sa position qu'en cas de déplacement important (environ 500 m). Batterie préservée, historique moins détaillé. ",
-        "Réactif : une position au moins toutes les 3 minutes ou tous les 100 m. Le passage en direct est plus rapide quand vous ouvrez la carte, mais la batterie baisse davantage. ",
-        "Dans les deux cas, dès qu'un parent ouvre la carte, l'iPhone passe en direct (une position toutes les 5 s) à son envoi suivant."),
+        "Intelligent : dès que l'enfant bouge, une position tous les 50 m (trajet détaillé dans l'historique) ; après 5 minutes à l'arrêt, l'iPhone se met en veille et n'envoie plus rien jusqu'au prochain déplacement. Batterie préservée. ",
+        "Réactif : une position au moins toutes les 3 minutes, même à l'arrêt. Vous voyez toujours une position récente, mais la batterie baisse davantage. ",
+        "Dans les deux cas, quand un parent regarde la carte et que l'iPhone est actif, il passe en direct (une position toutes les 5 s)."),
       err,
       h("button", { class: "btn block", type: "submit" }, "Enregistrer")),
       h("h2", {}, "Si OwnTracks ne répond plus"),
