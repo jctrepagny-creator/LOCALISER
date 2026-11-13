@@ -251,3 +251,23 @@ reset role;
 -- ===== Mode intelligent : profil par défaut avec « adapt » =====
 select pg_temp.assert((private.profile_config('eco'))->>'adapt' = '5', 'mode intelligent : adapt 5 min');
 select pg_temp.assert(private.profile_monitoring('eco') is null, 'mode intelligent : pas de correction du champ m');
+
+-- ===== QR code stable et détection des refus =====
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select (public.reset_child_credentials((select id from public.children limit 1)))->>'password' as p1 \gset
+select pg_temp.assert((public.get_child_setup((select id from public.children limit 1)))->>'password' = :'p1', 'même QR réaffiché');
+reset role;
+set role service_role;
+select public.svc_auth_failed(current_setting('my.u'));
+reset role;
+select pg_temp.assert((select auth_error_at is not null from public.children limit 1), 'refus enregistré');
+set role service_role;
+select public.svc_ingest_owntracks(current_setting('my.u'), :'p1', '{"_type":"location","lat":48.8566,"lon":2.3522}');
+reset role;
+select pg_temp.assert((select auth_error_at is null from public.children limit 1), 'refus effacé après un envoi accepté');
+-- Pas d'alerte silence pour batterie faible en charge
+update public.children set last_seen_at = now() - interval '2 hours', batt = 0, batt_status = 2, silence_alerted = false;
+delete from public.events where type = 'silence';
+select private.check_silence();
+select pg_temp.assert((select count(*) from public.events where type = 'silence') = 0, 'pas de fausse alerte en charge');

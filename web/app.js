@@ -391,6 +391,10 @@ function childState(c) {
   const age = ageSeconds(c.last_fix_at);
   const seen = ageSeconds(c.last_seen_at);
   const silentLimit = c.idle_mode === "reactif" ? 30 * 60 : 12 * 3600;
+  // OwnTracks se présente avec un mot de passe périmé (ancien QR code)
+  if (c.auth_error_at && (!c.last_seen_at || new Date(c.auth_error_at) > new Date(c.last_seen_at))) {
+    return { key: "auth", label: "⚠️ À reconfigurer", cls: "off" };
+  }
   if (!c.last_seen_at) return { key: "never", label: "Jamais connecté", cls: "off" };
   if (c.profile === "direct" && age <= LIVE_MAX_AGE_S) return { key: "live", label: "EN DIRECT", cls: "live" };
   if (seen > silentLimit) return { key: "off", label: "Sans nouvelles", cls: "off" };
@@ -419,6 +423,7 @@ function metaText(c) {
   if (c.vel && c.vel > 2) parts.push(`${c.vel} km/h`);
   if (st.key === "wait") parts.push("bascule au prochain envoi du téléphone");
   if (st.key === "sleep") parts.push("reprend dès qu'il bouge");
+  if (st.key === "auth") return "OwnTracks utilise un ancien mot de passe : ☰ → Gérer → QR d'installation";
   return parts.join(" · ");
 }
 
@@ -436,7 +441,7 @@ function renderChildren() {
       ),
       h("span", { class: "batt" + (c.batt != null && c.batt < 15 ? " low" : "") }, battText(c)),
       h("div", { class: "child-actions" },
-        st.key === "off" || st.key === "never" || st.key === "sleep"
+        st.key === "off" || st.key === "never" || st.key === "sleep" || st.key === "auth"
           ? h("a", { class: "icon-btn small", href: APPLE_FIND_URL, target: "_blank", rel: "noopener", title: "Voir sur Localiser d'Apple", "aria-label": "Voir " + c.name + " sur Localiser d'Apple" }, "🍏")
           : null,
         h("button", { class: "icon-btn small", "aria-label": "Historique de " + c.name, onclick: () => openHistory(c.id) }, "🕘"),
@@ -1031,7 +1036,21 @@ function openChild(id) {
       h("p", { class: "muted small" }, "Localiser d'Apple montre l'iPhone même si OwnTracks est fermé (connexion avec l'identifiant Apple de " + c.name + ")."),
       h("a", { class: "btn ghost block", href: APPLE_FIND_URL, target: "_blank", rel: "noopener", style: { display: "block", textAlign: "center", textDecoration: "none" } }, "🍏 Ouvrir Localiser d'Apple"),
       h("h2", {}, "iPhone de " + c.name),
-      h("p", { class: "muted small" }, "Pour installer ou réinstaller OwnTracks et le bouton SOS. Un nouveau QR code désactive l'ancienne configuration."),
+      h("p", { class: "muted small" }, "Pour installer ou réparer OwnTracks et le bouton SOS sur son iPhone."),
+      h("button", {
+        class: "btn block",
+        onclick: async () => {
+          const { data, error } = await S.sb.rpc("get_child_setup", { p_child_id: c.id });
+          if (error) return toast(errorText(error));
+          if (!data) {
+            toast("Ce QR code n'a pas encore été enregistré : générez-en un nouveau une fois (bouton ci-dessous).");
+            return;
+          }
+          closePage();
+          openChildSetup(c.name, data);
+        },
+      }, "Afficher le QR code d'installation"),
+      h("p", { class: "muted small" }, "En cas de problème uniquement : le bouton ci-dessous change le mot de passe. Il faudra alors retoucher « Configurer OwnTracks » et refaire l'icône SOS sur l'iPhone."),
       h("button", {
         class: "btn ghost block",
         onclick: async () => {
@@ -1041,7 +1060,7 @@ function openChild(id) {
           closePage();
           openChildSetup(c.name, data);
         },
-      }, "Nouveau QR code de configuration"),
+      }, "Nouveau mot de passe (nouveau QR code)"),
       h("h2", {}, "Supprimer"),
       h("button", {
         class: "btn danger block",
@@ -1069,7 +1088,7 @@ function openChildSetup(childName, creds) {
     navigator.share
       ? h("button", { class: "btn ghost block", onclick: () => navigator.share({ title: "Installation Localiser", url: setupUrl }).catch(() => {}) }, "Ou envoyer le lien à l'iPhone (SMS…)")
       : "",
-    h("p", { class: "card small" }, "Ce QR code ne sera plus affiché après « Terminé ». Gardez cette page ouverte jusqu'à la coche verte (vous pourrez sinon en générer un nouveau)."),
+    h("p", { class: "card small" }, "Ce QR code reste valable : vous pourrez le réafficher à tout moment (☰ → Gérer → Afficher le QR code d'installation)."),
     h("details", { class: "card small" },
       h("summary", {}, "Configuration manuelle d'OwnTracks (si besoin)"),
       h("p", {}, "Dans OwnTracks → ⓘ → Réglages : Mode ", h("strong", {}, "HTTP"), ", puis :"),

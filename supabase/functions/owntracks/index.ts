@@ -30,7 +30,11 @@ Deno.serve(async (req) => {
   });
 
   if (error) {
-    if (isAuthError(error)) return json({ error: "auth" }, 401);
+    if (isAuthError(error)) {
+      // Signalé dans l'app des parents : « ancien mot de passe, rescannez »
+      await admin.rpc("svc_auth_failed", { p_user: cred.user });
+      return json({ error: "auth" }, 401);
+    }
     console.error("svc_ingest_owntracks", error);
     // 500 : OwnTracks garde le message en file et le renverra plus tard
     return json({ error: "server" }, 500);
