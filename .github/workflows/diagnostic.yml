@@ -1,0 +1,43 @@
+name: Diagnostic Localiser
+
+# Lancement manuel uniquement. N'affiche aucune position ni aucun prénom :
+# seulement des heures, des modes, des niveaux de batterie et des codes HTTP.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REF: aafgbtaudauxhayqpovc
+  TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: État des enfants (sans nom ni position)
+        run: |
+          q() {
+            curl -sS -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              -d "$(jq -n --arg q "$1" '{query: $q}')" | jq .
+          }
+          echo "=== Enfants ==="
+          q "select left(id::text, 8) as enfant, idle_mode, profile, profile_sent_at, last_seen_at, last_fix_at, batt, batt_status, zones_synced_version, now() as maintenant from public.children order by created_at"
+          echo "=== Positions reçues par heure (24 h) ==="
+          q "select left(child_id::text, 8) as enfant, date_trunc('hour', received_at) as heure, count(*) as nb, string_agg(distinct coalesce(trigger, '-'), ',') as declencheurs from public.locations where received_at > now() - interval '24 hours' group by 1, 2 order by 2, 1"
+          echo "=== Derniers événements ==="
+          q "select type, created_at from public.events order by created_at desc limit 10"
+
+      - name: Appels reçus par la fonction owntracks (codes HTTP)
+        run: |
+          START=$(date -u -d '-14 hours' +%Y-%m-%dT%H:%M:%SZ)
+          END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          SQL="select datetime(timestamp) as t, response.status_code as code, request.method as method, request.url as url from function_edge_logs cross join unnest(metadata) as m cross join unnest(m.response) as response cross join unnest(m.request) as request order by timestamp desc limit 80"
+          curl -sS -G "https://api.supabase.com/v1/projects/$REF/analytics/endpoints/logs.all" \
+            -H "Authorization: Bearer $TOKEN" \
+            --data-urlencode "sql=$SQL" \
+            --data-urlencode "iso_timestamp_start=$START" \
+            --data-urlencode "iso_timestamp_end=$END" \
+            | jq -r '.result[]? | "\(.t)  \(.code)  \(.method)  \(.url | sub("\\?.*"; ""))"' || true
